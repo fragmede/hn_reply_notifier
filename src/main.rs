@@ -20,7 +20,17 @@ async fn process_page(url: &str, username: &str, conn: &Connection, stream_handl
         let comment_text = comment.text().collect::<String>();
         let author_selector = Selector::parse(".hnuser").unwrap();
         let author = comment.ancestors().find_map(|ancestor| {
-            ancestor.select(&author_selector).next().and_then(|node| node.text().next())
+            ancestor.children().find_map(|node| {
+                if let Some(element) = node.value().as_element() {
+                    if element.name.local == "a" && element.attributes.contains_key("class") && element.attributes.get("class") == Some(&"hnuser".to_string()) {
+                        node.text().next()
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
         }).unwrap_or_else(|| String::from("Unknown"));
 
         if author == username {
