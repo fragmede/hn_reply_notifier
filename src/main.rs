@@ -44,17 +44,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 			let comment_text = comment.text().collect::<String>();
 
 			// Get the author of the comment
-			let author_element = comment.parent().unwrap().select(&author_selector).next();
-			let author = if let Some(element) = author_element {
-				element.text().collect::<String>()
-			} else {
-				String::from("Unknown")
-			};
+			rent_tr = comment.ancestor_nodes().find(|node| {
+				node.value().name() == Some("tr")
+			});
+
+			// Get the sibling tr element containing the author information
+			let sibling_tr = parent_tr.and_then(|node| node.prev_sibling());
+
+			// Get the author of the comment
+			let author = sibling_tr.and_then(|node| {
+				node.select(&author_selector).next()
+			}).map(|element| element.text().collect::<String>()).unwrap_or(String::from("Unknown"));
 
 			// Skip if the author is you
 			if author == "fragmede" {
 				continue;
 			}
+
 			let mut stmt = conn.prepare("SELECT id FROM comments WHERE text = ?1")?;
 			let comment_exists: Result<i32> = stmt.query_row(params![comment_text], |row| row.get(0));
 
