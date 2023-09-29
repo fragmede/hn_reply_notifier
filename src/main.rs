@@ -1,10 +1,3 @@
-extern crate reqwest;
-extern crate scraper;
-extern crate rusqlite;
-extern crate notify_rust;
-extern crate rodio;
-extern crate chrono;
-
 use chrono::Local;
 use scraper::{Html, Selector};
 use rusqlite::{params, Connection, Result};
