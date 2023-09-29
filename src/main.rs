@@ -18,6 +18,15 @@ async fn process_page(url: &str, username: &str, conn: &Connection, stream_handl
 
     for comment in fragment.select(&comment_selector) {
         let comment_text = comment.text().collect::<String>();
+        let author_selector = Selector::parse(".hnuser").unwrap();
+        let author = comment.ancestors().find_map(|ancestor| {
+            ancestor.select(&author_selector).next().and_then(|node| node.text().next())
+        }).unwrap_or_else(|| String::from("Unknown"));
+
+        if author == username {
+            continue;
+        }
+
         let mut stmt = conn.prepare("SELECT id FROM comments WHERE text = ?1")?;
         let comment_exists: Result<i32> = stmt.query_row(params![comment_text], |row| row.get(0));
 
@@ -26,7 +35,7 @@ async fn process_page(url: &str, username: &str, conn: &Connection, stream_handl
                 "INSERT INTO comments (text) VALUES (?1)",
                 params![comment_text],
             )?;
-            println!("New comment: {}", comment_text);
+            println!("New comment from {}: {}", author, comment_text);
 
             let first_10_words: String = comment_text.split_whitespace().take(10).collect::<Vec<&str>>().join(" ");
             Notification::new()
