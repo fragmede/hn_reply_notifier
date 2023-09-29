@@ -29,10 +29,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let home_dir = dirs::home_dir().expect("Could not get home directory");
         let config_path = home_dir.join(".hackernews_comments");
         fs::read_to_string(config_path)
-            .unwrap_or(String::from("fragmede"))
-            .trim()
-            .to_string()
+            .map(|s| s.trim().to_string())
+            .ok_or("Username not specified in config file or command line")?
     };
+
+    if username.is_empty() {
+        return Err("Username cannot be empty".into());
+    }
 
     loop {
         let now = Local::now();
