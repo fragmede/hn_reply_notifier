@@ -40,18 +40,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
         for comment in fragment.select(&comment_selector) {
+
             let comment_text = comment.text().collect::<String>();
 
-            let parent_tr = comment.ancestor_nodes().find(|node| {
-                node.value().name() == Some("tr")
+            // Navigate to the parent 'td' of the comment
+            let parent_td = comment.ancestor_nodes().find(|node| {
+                node.value().as_element().is_some() && node.value().as_element().unwrap().name.local == "td"
             });
 
-            let sibling_tr = parent_tr.and_then(|node| node.prev_sibling());
+            // Navigate to the sibling 'td' containing the author information
+            let sibling_td = parent_td.and_then(|node| node.prev_sibling());
 
-            let author = sibling_tr.and_then(|node| {
-                node.select(&author_selector).next()
-            }).map(|element| element.text().collect::<String>()).unwrap_or(String::from("Unknown"));
+            // Extract the author's username
+            let author = sibling_td.and_then(|node| {
+                node.children().find(|child| {
+                    child.value().as_element().is_some() && child.value().as_element().unwrap().name.local == "a"
+                })
+            }).and_then(|node| {
+                node.text()
+            }).unwrap_or(String::from("Unknown"));
 
+            // Skip if the author is you
             if author == "fragmede" {
                 continue;
             }
