@@ -22,8 +22,14 @@ async fn process_page(url: &str, username: &str, conn: &Connection, stream_handl
         let author = comment.ancestors().find_map(|ancestor| {
             ancestor.children().find_map(|node| {
                 if let Some(element) = node.value().as_element() {
-                    if element.name.local == "a" && element.attributes.contains_key("class") && element.attributes.get("class") == Some(&"hnuser".to_string()) {
-                        node.text().next()
+                    if element.name.local.as_ref() == "a" && element.attributes.get("class").map_or(false, |v| v == "hnuser") {
+                        node.children().filter_map(|n| {
+                            if let Some(text) = n.value().as_text() {
+                                Some(text.to_string())
+                            } else {
+                                None
+                            }
+                        }).next()
                     } else {
                         None
                     }
