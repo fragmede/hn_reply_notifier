@@ -54,10 +54,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Extract the author's username
             let author = sibling_td.and_then(|node| {
                 node.children().find(|child| {
-                    child.value().as_element().is_some() && child.value().as_element().unwrap().name.local == "a"
+                    child.value().as_element().is_some() && child.value().as_element().unwrap().name.local.as_ref() == "a"
                 })
             }).and_then(|node| {
-                node.text()
+                Some(node.text_nodes().map(|n| n.borrow().to_string()).collect::<String>())
             }).unwrap_or(String::from("Unknown"));
 
             // Skip if the author is you
