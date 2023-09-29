@@ -33,23 +33,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                   id INTEGER PRIMARY KEY,
                   text TEXT NOT NULL
                   )",
-                  params![],
-                  )?;
+            params![],
+        )?;
 
         let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
         for comment in fragment.select(&comment_selector) {
             let comment_text = comment.text().collect::<String>();
 
-            // Navigate to the parent 'tr' of the comment
-            let parent_tr = comment.ancestors().find(|node| {
-                node.value().as_element().is_some() && node.value().as_element().unwrap().name.local.as_ref() == "tr"
-            });
-
-            // Navigate to the sibling 'td' containing the author information
-            let sibling_td = parent_tr.and_then(|node| node.prev_sibling());
-
-            // Extract the author's username
             let author = comment.ancestors().find(|node| {
                 node.value().as_element().is_some() && node.value().as_element().unwrap().name.local.as_ref() == "td"
             }).and_then(|td| {
@@ -65,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     child.value().as_element().is_some() && child.value().as_element().unwrap().name.local.as_ref() == "a"
                 })
             }).and_then(|a| {
-                ome(a.children().filter_map(|n| {
+                Some(a.children().filter_map(|n| {
                     if let Some(text) = n.value().as_text() {
                         Some(text.to_string())
                     } else {
@@ -74,8 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }).collect::<String>())
             }).unwrap_or(String::from("Unknown"));
 
-
-            if author == "fragmede" || author == "Unknown" {
+            if author == "fragmede" {
                 continue;
             }
 
@@ -86,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 conn.execute(
                     "INSERT INTO comments (text) VALUES (?1)",
                     params![comment_text],
-                    )?;
+                )?;
                 println!("New comment from {}: {}", author, comment_text);
 
                 let first_10_words: String = comment_text.split_whitespace().take(10).collect::<Vec<&str>>().join(" ");
