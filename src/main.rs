@@ -30,8 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         params![],
     )?;
 
-    let device = rodio::default_output_device().unwrap();
-    let sink = rodio::Sink::new(&device);
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
     for comment in fragment.select(&comment_selector) {
         let comment_text = comment.text().collect::<String>();
@@ -50,9 +49,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .summary("New Reply on Hacker News")
                 .body(&first_10_words)
                 .show()?;
+			// Load a sound from a file, using a path relative to Cargo.toml
+			let file = BufReader::new(File::open("sound.m4a").unwrap());
+			// Decode that sound file into a source
+			let source = Decoder::new(file).unwrap();
 
-            let file = BufReader::new(File::open("sound.mp3").unwrap());
-            sink.append(rodio::Decoder::new(file).unwrap());
+			// Play the sound directly on the device
+			stream_handle.play_raw(source.convert_samples());
         }
     }
 
