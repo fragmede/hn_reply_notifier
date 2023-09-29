@@ -50,23 +50,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let sibling_td = parent_tr.and_then(|node| node.prev_sibling());
 
             // Extract the author's username
-            let author = sibling_td.and_then(|node| {
-                node.children().find(|child| {
-                    child.value().as_element().is_some() && child.value().as_element().unwrap().name.local.as_ref() == "span"
-                }).and_then(|span| {
-                    span.children().find(|child| {
-                        child.value().as_element().is_some() && child.value().as_element().unwrap().name.local.as_ref() == "a"
-                    })
+            let author = comment.ancestors().find(|node| {
+                node.value().as_element().is_some() && node.value().as_element().unwrap().name.local.as_ref() == "td"
+            }).and_then(|td| {
+                td.children().find(|child| {
+                    child.value().as_element().is_some() && child.value().as_element().unwrap().name.local.as_ref() == "div"
                 })
-            }).and_then(|node| {
-                Some(node.children().filter_map(|n| {
-                    if let Some(text) = n.value().as_text() {
-                        Some(text.to_string())
-                    } else {
-                        None
-                    }
-                }).collect::<String>())
+            }).and_then(|div| {
+                div.children().find(|child| {
+                    child.value().as_element().is_some() && child.value().as_element().unwrap().name.local.as_ref() == "span"
+                })
+            }).and_then(|span| {
+                span.children().find(|child| {
+                    child.value().as_element().is_some() && child.value().as_element().unwrap().name.local.as_ref() == "a"
+                })
+            }).and_then(|a| {
+                Some(a.text_nodes().map(|n| n.borrow().to_string()).collect::<String>())
             }).unwrap_or(String::from("Unknown"));
+
 
             if author == "fragmede" || author == "Unknown" {
                 continue;
