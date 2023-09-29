@@ -5,6 +5,7 @@ use notify_rust::Notification;
 use std::io::BufReader;
 use std::fs::File;
 use rodio::{Decoder, OutputStream, source::Source};
+use string_join::Join;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -72,7 +73,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )?;
                 println!("New comment from {}: {}", author, comment_text);
 
-                let first_10_words: String = comment_text.split_whitespace().take(10).collect::<Vec<&str>>().join(" ");
+                let first_10_words: String = " ".join(comment_text.split_whitespace().take(10));
+
                 Notification::new()
                     .summary("New Reply on Hacker News")
                     .body(&first_10_words)
