@@ -65,7 +65,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     child.value().as_element().is_some() && child.value().as_element().unwrap().name.local.as_ref() == "a"
                 })
             }).and_then(|a| {
-                Some(a.text_nodes().map(|n| n.borrow().to_string()).collect::<String>())
+                ome(a.children().filter_map(|n| {
+                    if let Some(text) = n.value().as_text() {
+                        Some(text.to_string())
+                    } else {
+                        None
+                    }
+                }).collect::<String>())
             }).unwrap_or(String::from("Unknown"));
 
 
