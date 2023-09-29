@@ -3,7 +3,9 @@ extern crate scraper;
 extern crate rusqlite;
 extern crate notify_rust;
 extern crate rodio;
+extern crate chrono;
 
+use chrono::Local;
 use scraper::{Html, Selector};
 use rusqlite::{params, Connection, Result};
 use notify_rust::Notification;
@@ -14,6 +16,9 @@ use std::fs::File;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	loop {
+		let now = Local::now();
+		println!("Checking for new comments at {}", now.format("%Y-%m-%d %H:%M:%S"));
+
 		let url = "https://news.ycombinator.com/threads?id=fragmede";
 		let resp = reqwest::get(url).await?;
 		let body = resp.text().await?;
@@ -33,8 +38,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 		let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
+		let author_selector = Selector::parse(".hnuser").unwrap();
+
 		for comment in fragment.select(&comment_selector) {
 			let comment_text = comment.text().collect::<String>();
+
+			// Get the author of the comment
+			let author_element = comment.parent().unwrap().select(&author_selector).next();
+			let author = if let Some(element) = author_element {
+				element.text().collect::<String>()
+			} else {
+				String::from("Unknown")
+			};
+
+			// Skip if the author is you
+			if author == "fragmede" {
+				continue;
+			}
 			let mut stmt = conn.prepare("SELECT id FROM comments WHERE text = ?1")?;
 			let comment_exists: Result<i32> = stmt.query_row(params![comment_text], |row| row.get(0));
 
