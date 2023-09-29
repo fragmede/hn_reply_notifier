@@ -6,15 +6,25 @@ use std::io::BufReader;
 use std::fs::File;
 use rodio::{Decoder, OutputStream, source::Source};
 use string_join::Join;
-use std::env;
 use std::fs;
+use clap::{Arg, App};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Read username from command line arguments or from a file
-    let args: Vec<String> = env::args().collect();
-    let username = if args.len() > 1 {
-        args[1].clone()
+    let matches = App::new("Hacker News Comment Notifier")
+        .version("1.0")
+        .author("Your Name")
+        .about("Notifies you of new comments on your Hacker News posts")
+        .arg(Arg::with_name("username")
+             .short("u")
+             .long("username")
+             .value_name("USERNAME")
+             .help("Sets a custom username")
+             .takes_value(true))
+        .get_matches();
+
+    let username = if let Some(u) = matches.value_of("username") {
+        u.to_string()
     } else {
         let home_dir = dirs::home_dir().expect("Could not get home directory");
         let config_path = home_dir.join(".hackernews_comments");
