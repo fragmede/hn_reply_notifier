@@ -33,23 +33,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                   id INTEGER PRIMARY KEY,
                   text TEXT NOT NULL
                   )",
-            params![],
-        )?;
+                  params![],
+                  )?;
 
         let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
         for comment in fragment.select(&comment_selector) {
             let comment_text = comment.text().collect::<String>();
 
-            let parent_td = comment.ancestors().find(|node| {
-                node.value().as_element().is_some() && node.value().as_element().unwrap().name.local.as_ref() == "td"
+            // Navigate to the parent 'tr' of the comment
+            let parent_tr = comment.ancestors().find(|node| {
+                node.value().as_element().is_some() && node.value().as_element().unwrap().name.local.as_ref() == "tr"
             });
 
-            let sibling_td = parent_td.and_then(|node| node.prev_sibling());
+            // Navigate to the sibling 'td' containing the author information
+            let sibling_td = parent_tr.and_then(|node| node.prev_sibling());
 
+            // Extract the author's username
             let author = sibling_td.and_then(|node| {
                 node.children().find(|child| {
-                    child.value().as_element().is_some() && child.value().as_element().unwrap().name.local.as_ref() == "a"
+                    child.value().as_element().is_some() && child.value().as_element().unwrap().name.local.as_ref() == "span"
+                }).and_then(|span| {
+                    span.children().find(|child| {
+                        child.value().as_element().is_some() && child.value().as_element().unwrap().name.local.as_ref() == "a"
+                    })
                 })
             }).and_then(|node| {
                 Some(node.children().filter_map(|n| {
@@ -61,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }).collect::<String>())
             }).unwrap_or(String::from("Unknown"));
 
-            if author == "fragmede" {
+            if author == "fragmede" || author == "Unknown" {
                 continue;
             }
 
@@ -72,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 conn.execute(
                     "INSERT INTO comments (text) VALUES (?1)",
                     params![comment_text],
-                )?;
+                    )?;
                 println!("New comment from {}: {}", author, comment_text);
 
                 let first_10_words: String = comment_text.split_whitespace().take(10).collect::<Vec<&str>>().join(" ");
