@@ -25,7 +25,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let fragment = Html::parse_document(&body);
         let comment_selector = Selector::parse(".commtext").unwrap();
-        let author_selector = Selector::parse(".hnuser").unwrap();
 
         let conn = Connection::open("comments.db")?;
 
@@ -34,24 +33,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                   id INTEGER PRIMARY KEY,
                   text TEXT NOT NULL
                   )",
-                  params![],
-                  )?;
+            params![],
+        )?;
 
         let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
         for comment in fragment.select(&comment_selector) {
-
             let comment_text = comment.text().collect::<String>();
 
-            // Navigate to the parent 'td' of the comment
             let parent_td = comment.ancestor_nodes().find(|node| {
                 node.value().as_element().is_some() && node.value().as_element().unwrap().name.local.as_ref() == "td"
             });
 
-            // Navigate to the sibling 'td' containing the author information
             let sibling_td = parent_td.and_then(|node| node.prev_sibling());
 
-            // Extract the author's username
             let author = sibling_td.and_then(|node| {
                 node.children().find(|child| {
                     child.value().as_element().is_some() && child.value().as_element().unwrap().name.local.as_ref() == "a"
@@ -66,18 +61,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }).collect::<String>())
             }).unwrap_or(String::from("Unknown"));
 
-            // Skip if the author is you
             if author == "fragmede" {
                 continue;
             }
 
             let mut stmt = conn.prepare("SELECT id FROM comments WHERE text = ?1")?;
             let comment_exists: Result<i32> = stmt.query_row(params![comment_text], |row| row.get(0));
+
             if comment_exists.is_err() {
                 conn.execute(
                     "INSERT INTO comments (text) VALUES (?1)",
                     params![comment_text],
-                    )?;
+                )?;
                 println!("New comment from {}: {}", author, comment_text);
 
                 let first_10_words: String = comment_text.split_whitespace().take(10).collect::<Vec<&str>>().join(" ");
@@ -92,7 +87,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     eprintln!("Error playing sound: {}", e);
                 }
             }
-
-            std::thread::sleep(std::time::Duration::from_secs(60 * 5));
         }
+
+        std::thread::sleep(std::time::Duration::from_secs(60 * 5));
     }
+}
