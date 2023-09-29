@@ -17,8 +17,29 @@ async fn process_page(url: &str, username: &str, conn: &Connection, stream_handl
     let more_selector = Selector::parse("a.morelink").unwrap();
 
     for comment in fragment.select(&comment_selector) {
-        // Your existing code for processing comments
-        // ...
+        let comment_text = comment.text().collect::<String>();
+        let mut stmt = conn.prepare("SELECT id FROM comments WHERE text = ?1")?;
+        let comment_exists: Result<i32> = stmt.query_row(params![comment_text], |row| row.get(0));
+
+        if comment_exists.is_err() {
+            conn.execute(
+                "INSERT INTO comments (text) VALUES (?1)",
+                params![comment_text],
+            )?;
+            println!("New comment: {}", comment_text);
+
+            let first_10_words: String = comment_text.split_whitespace().take(10).collect::<Vec<&str>>().join(" ");
+            Notification::new()
+                .summary("New Reply on Hacker News")
+                .body(&first_10_words)
+                .show()?;
+
+            let file = BufReader::new(File::open("sound.mp3").unwrap());
+            let source = Decoder::new(file).unwrap();
+            if let Err(e) = stream_handle.play_raw(source.convert_samples()) {
+                eprintln!("Error playing sound: {}", e);
+            }
+        }
     }
 
     let next_page_id = fragment.select(&more_selector)
