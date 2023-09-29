@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         for comment in fragment.select(&comment_selector) {
             let comment_text = comment.text().collect::<String>();
 
-            let parent_td = comment.ancestor_nodes().find(|node| {
+            let parent_td = comment.ancestors().find(|node| {
                 node.value().as_element().is_some() && node.value().as_element().unwrap().name.local.as_ref() == "td"
             });
 
