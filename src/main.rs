@@ -6,9 +6,22 @@ use std::io::BufReader;
 use std::fs::File;
 use rodio::{Decoder, OutputStream, source::Source};
 use string_join::Join;
+use std::env;
+use std::fs;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Read username from command line arguments or from a file
+    let args: Vec<String> = env::args().collect();
+    let username = if args.len() > 1 {
+        args[1].clone()
+    } else {
+        fs::read_to_string("/Users/your_username/.hackernews_comments")
+            .unwrap_or(String::from("fragmede"))
+            .trim()
+            .to_string()
+    };
+
     loop {
         let now = Local::now();
         println!("Checking for new comments at {}", now.format("%Y-%m-%d %H:%M:%S"));
