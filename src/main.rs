@@ -56,7 +56,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 				let source = Decoder::new(file).unwrap();
 
 				// Play the sound directly on the device
-				stream_handle.play_raw(source.convert_samples());
+				if let Err(e) = stream_handle.play_raw(source.convert_samples()) {
+					eprintln!("Error playing sound: {}", e);
+				}
 			}
 		}
 		// Sleep for N minutes before the next iteration
