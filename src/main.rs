@@ -2,10 +2,14 @@ extern crate reqwest;
 extern crate scraper;
 extern crate rusqlite;
 extern crate notify_rust;
+extern crate rodio;
 
 use scraper::{Html, Selector};
 use rusqlite::{params, Connection, Result};
 use notify_rust::Notification;
+use rodio::Source;
+use std::io::BufReader;
+use std::fs::File;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,6 +30,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         params![],
     )?;
 
+    let device = rodio::default_output_device().unwrap();
+    let sink = rodio::Sink::new(&device);
+
     for comment in fragment.select(&comment_selector) {
         let comment_text = comment.text().collect::<String>();
         let mut stmt = conn.prepare("SELECT id FROM comments WHERE text = ?1")?;
@@ -43,6 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .summary("New Reply on Hacker News")
                 .body(&first_10_words)
                 .show()?;
+
+            let file = BufReader::new(File::open("sound.mp3").unwrap());
+            sink.append(rodio::Decoder::new(file).unwrap());
         }
     }
 
