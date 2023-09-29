@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let now = Local::now();
         println!("Checking for new comments at {}", now.format("%Y-%m-%d %H:%M:%S"));
 
-        let url = "https://news.ycombinator.com/threads?id=fragmede";
+        let url = format!("https://news.ycombinator.com/threads?id={}", username);
         let resp = reqwest::get(url).await?;
         let body = resp.text().await?;
 
@@ -84,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }).collect::<String>())
             }).unwrap_or(String::from("Unknown"));
 
-            if author == "fragmede" {
+            if author == username {
                 continue;
             }
 
