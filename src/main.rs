@@ -82,13 +82,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let home_dir = dirs::home_dir().expect("Could not get home directory");
         let config_path = home_dir.join(".hackernews_comments");
         fs::read_to_string(config_path)
-            .map(|s| s.trim().to_string())
-            .ok_or("Username not specified in config file or command line")?
+            .expect("Could not read config file")
+            .trim()
+            .to_string()
     };
-
-    if username.is_empty() {
-        return Err("Username cannot be empty".into());
-    }
 
     let conn = Connection::open("comments.db")?;
     conn.execute(
@@ -101,19 +98,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
-    let mut next_page_id: Option<String> = None;
-    for _ in 0..4 {
-        let url = if let Some(ref id) = next_page_id {
-            format!("https://news.ycombinator.com/threads?id={}&next={}", username, id)
-        } else {
-            format!("https://news.ycombinator.com/threads?id={}", username)
-        };
+    loop {
+        let now = Local::now();
+        println!("Checking for new comments at {}", now.format("%Y-%m-%d %H:%M:%S"));
 
-        next_page_id = process_page(&url, &username, &conn, &stream_handle).await?;
-        if next_page_id.is_none() {
-            break;
+        let mut next_page_id = None;
+        for _ in 0..4 {
+            let url = format!(
+                "https://news.ycombinator.com/threads?id={}&next={}",
+                username,
+                next_page_id.unwrap_or_default()
+            );
+            match process_page(&url, &username, &conn, &stream_handle).await {
+                Ok(id) => next_page_id = id,
+                Err(e) => eprintln!("Error processing page: {}", e),
+            }
+            if next_page_id.is_none() {
+                break;
+            }
         }
-    }
 
-    Ok(())
+        std::thread::sleep(std::time::Duration::from_secs(60 * 5));
+    }
 }
