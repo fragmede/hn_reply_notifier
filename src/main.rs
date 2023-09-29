@@ -18,11 +18,10 @@ async fn process_page(url: &str, username: &str, conn: &Connection, stream_handl
 
     for comment in fragment.select(&comment_selector) {
         let comment_text = comment.text().collect::<String>();
-        let author_selector = Selector::parse(".hnuser").unwrap();
         let author = comment.ancestors().find_map(|ancestor| {
             ancestor.children().find_map(|node| {
                 if let Some(element) = node.value().as_element() {
-                    if element.name.local.as_ref() == "a" && element.attributes.get("class").map_or(false, |v| v == "hnuser") {
+                    if element.name.local.as_ref() == "a" && element.attr("class").unwrap_or("") == "hnuser" {
                         node.children().filter_map(|n| {
                             if let Some(text) = n.value().as_text() {
                                 Some(text.to_string())
