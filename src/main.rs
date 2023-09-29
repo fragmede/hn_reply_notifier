@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // Navigate to the parent 'td' of the comment
             let parent_td = comment.ancestor_nodes().find(|node| {
-                node.value().as_element().is_some() && node.value().as_element().unwrap().name.local == "td"
+                node.value().as_element().is_some() && node.value().as_element().unwrap().name.local.as_ref() == "td"
             });
 
             // Navigate to the sibling 'td' containing the author information
