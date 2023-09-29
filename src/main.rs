@@ -16,7 +16,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let username = if args.len() > 1 {
         args[1].clone()
     } else {
-        fs::read_to_string("/Users/your_username/.hackernews_comments")
+        let home_dir = dirs::home_dir().expect("Could not get home directory");
+        let config_path = home_dir.join(".hackernews_comments");
+        fs::read_to_string(config_path)
             .unwrap_or(String::from("fragmede"))
             .trim()
             .to_string()
