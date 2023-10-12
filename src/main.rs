@@ -91,16 +91,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
              .takes_value(true))
         .get_matches();
 
-    let username = if let Some(u) = matches.value_of("username") {
-        u.to_string()
-    } else {
-        let home_dir = dirs::home_dir().expect("Could not get home directory");
-        let config_path = home_dir.join(".hackernews_comments");
-        fs::read_to_string(config_path)
-            .expect("Could not read config file")
-            .trim()
-            .to_string()
-    };
+	let username = matches
+		.value_of("username")
+		.map(|u| u.to_string())
+		.unwrap_or_else(|| {
+			let home_dir = dirs::home_dir().expect("Could not get home directory");
+			let config_path = home_dir.join(".hackernews_comments");
+			fs::read_to_string(config_path).ok()
+				.map(|s| s.trim().to_string())
+				.unwrap_or_else(|| {
+					eprintln!("Username not set. Aborting.");
+					std::process::abort();
+				})
+		});
+
+	println!("Username checking for is {}", username);
 
     let conn = Connection::open("comments.db")?;
     conn.execute(
