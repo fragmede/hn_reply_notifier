@@ -13,80 +13,19 @@ async fn process_page(url: &str, username: &str, conn: &Connection, stream_handl
     let resp = reqwest::get(url).await?;
     let body = resp.text().await?;
     let fragment = Html::parse_document(&body);
-    //let comment_selector = Selector::parse(".commtext").unwrap();
     let more_selector = Selector::parse("a.morelink").unwrap();
-
     let comments_selector = Selector::parse(".athing").unwrap();
-
-	let commtext_sel = Selector::parse(".commtext").unwrap();
+    let commtext_sel = Selector::parse(".commtext").unwrap();
+    let commhead_sel = Selector::parse(".comhead").unwrap();
 
 	//for comment in fragment.select(&comment_selector) {
 	for comment in fragment.select(&comments_selector) {
-		let comment_text = comment.select(&commtext_sel)
-			.next()
-			.map(|e| e.text().collect::<String>())
-			.unwrap_or_else(|| "".to_string());
-    
-		//let comment_text = comment.select(&commtext_sel) {
-		//	Some("") => {
-		//	}
-		//}.text().collect::<String>();
-
-		//println!("comment {:?}", comment);
-		//Html::parse_comment.text().
-		//let comment_text = comment.text().collect::<String>();
-		println!("\n\n\n\nComment Text: {}", comment_text);
-
-		let author = comment.ancestors().find_map(|ancestor| {
-		//let author = comment.ancestors().find_map(|parent| {
-		//	println!("parent");
-			//parent.ancestors().find_map(|ancestor| {
-			//println!("ancestor {:?}", ancestor.value());
-			ancestor.children().find_map(|node| {
-				println!("node {:?}", node.value());
-				//if node.as_element().name.local.as_ref() == "span" {
-				//	match node.attr("class") {
-				//		Some("comhead") => {
-				//			println!("here");
-				//		}
-				//	}
-				//}
-
-				if let Some(element) = node.value().as_element() {
-					//println!("elem: {:?}", node.value());
-					//println!("elem: {} - {}", element.name.local.as_ref(), element.attr("class").as_ref());
-
-					//if element.name.local.as_ref() == "
-					//if element.name.local.as_ref() == "tr" {
-					//	println!("ele: {:?}", element);
-					//	match element.attr("class") {
-					//		Some("comtr"
-					if element.name.local.as_ref() == "tr" {
-						println!("ele: {:?}", element);
-						match element.attr("class") {
-							Some("hnuser") => {
-								node.children().filter_map(|n| {
-									if let Some(text) = n.value().as_text() {
-										Some(text.to_string())
-									} else {
-										None
-									}
-								}).next()
-							},
-							_ => None,
-						}
-					} else {
-						None
-					}
-				} else {
-					None
-				}
-			})
-//})
-		}).unwrap_or_else(|| String::from("Unknown"));
-
-		println!("Author: {}", author); // author remains a String
-
+		let comment_text = comment.select(&commtext_sel).next().unwrap().text().collect::<String>();
+		let comment_head = comment.select(&commhead_sel).next().unwrap().text().collect::<String>();
+		let author = comment.select(&Selector::parse(".hnuser").unwrap()).next().unwrap().text().collect::<String>();
+		//println!("\n\n\n\nComment Text: {}", comment_text);
+		//println!("\n\n\n\nComment head: {}", comment_head);
+		//println!("Author: {}", author); // author remains a String
         if author == username {
             continue;
         }
