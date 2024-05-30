@@ -13,9 +13,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use reqwest::StatusCode;
 
-
 async fn get_page(url: &str, username: &str, conn: &Connection, stream_handle: &rodio::OutputStreamHandle) -> Result<String, Box<dyn Error>> {
-
     println!("Checking for new comments on {}", url);
     let resp = reqwest::get(url).await?;
     let status = resp.status();
@@ -24,25 +22,25 @@ async fn get_page(url: &str, username: &str, conn: &Connection, stream_handle: &
         StatusCode::OK => {
             // Fetch the response body
             let body = resp.text().await?;
-			match process_page(&body, username, conn, stream_handle).await {
-				Ok(processed_body) => Ok(processed_body),
-				Err(e) => {
-					eprintln!("Error processing page: {}", e);
-					Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "error parsing")))
-				}
-			}
+            match process_page(&body, username, conn, stream_handle).await {
+                Ok(processed_body) => Ok(processed_body),
+                Err(e) => {
+                    eprintln!("Error processing page: {}", e);
+                    Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Error parsing: {}", e))))
+                }
+            }
         },
         StatusCode::NOT_FOUND => {
             eprintln!("Error: Resource not found (404)");
-            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Resource not found")))
+            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Resource not found".to_string())))
         },
         StatusCode::TOO_MANY_REQUESTS => {
             eprintln!("Error: Rate limited (429)");
-            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "429 rate limited")))
+            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "429 rate limited".to_string())))
         },
         _ => {
             eprintln!("Error: Received unexpected status code {}", status);
-            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, status.as_str())))
+            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Unexpected status code: {}", status))))
         },
     };
 }
