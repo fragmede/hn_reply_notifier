@@ -13,7 +13,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use reqwest::StatusCode;
 
-async fn get_page(url: &str, username: &str, conn: &Connection, stream_handle: &rodio::OutputStreamHandle) -> Result<String, Box<dyn Error>> {
+async fn get_page(url: &str, username: &str, conn: &Connection, stream_handle: &rodio::OutputStreamHandle) -> Result<Option<String>, Box<dyn Error>> {
     println!("Checking for new comments on {}", url);
     let resp = reqwest::get(url).await?;
     let status = resp.status();
@@ -23,7 +23,8 @@ async fn get_page(url: &str, username: &str, conn: &Connection, stream_handle: &
             // Fetch the response body
             let body = resp.text().await?;
             match process_page(&body, username, conn, stream_handle).await {
-                Ok(processed_body) => Ok(processed_body),
+				Ok(Some(processed_body)) => Ok(Some(processed_body)),
+                Ok(None) => Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "No content in processed page"))),
                 Err(e) => {
                     eprintln!("Error processing page: {}", e);
                     Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Error parsing: {}", e))))
@@ -32,19 +33,18 @@ async fn get_page(url: &str, username: &str, conn: &Connection, stream_handle: &
         },
         StatusCode::NOT_FOUND => {
             eprintln!("Error: Resource not found (404)");
-            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Resource not found".to_string())))
+            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Resource not found")))
         },
         StatusCode::TOO_MANY_REQUESTS => {
             eprintln!("Error: Rate limited (429)");
-            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "429 rate limited".to_string())))
+            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "429 rate limited")))
         },
         _ => {
             eprintln!("Error: Received unexpected status code {}", status);
             Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Unexpected status code: {}", status))))
         },
-    };
+    }
 }
-
 
 async fn process_page(body: &str, username: &str, conn: &Connection, stream_handle: &rodio::OutputStreamHandle) -> Result<Option<String>, Box<dyn std::error::Error>> {
     //let body = resp.text().await?;
@@ -58,7 +58,6 @@ async fn process_page(body: &str, username: &str, conn: &Connection, stream_hand
 		let comment_text = comment.select(&commtext_sel).next().unwrap().text().collect::<String>();
 		let author = comment.select(&Selector::parse(".hnuser").unwrap()).next().unwrap().text().collect::<String>();
 		//println!("\n\n\n\nComment Text: {}", comment_text);
-		//println!("\n\n\n\nComment head: {}", comment_head);
 		//println!("Author: {}", author); // author remains a String
         if author == username {
             //println!("Ignoring the reply you wrote.");
@@ -89,10 +88,6 @@ async fn process_page(body: &str, username: &str, conn: &Connection, stream_hand
         }
     }
     let more_selector = Selector::parse("a.morelink").unwrap();
-	println!("more sel {:#?}", more_selector);
-
-	let foo = fragment.select(&more_selector);
-	println!("more sel {:#?}", foo);
 	let next_page_id = fragment.select(&more_selector)
 		.filter_map(|node| {
 			let href = node.value().attr("href");
@@ -168,34 +163,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Checking for new comments at {}", now.format("%Y-%m-%d %H:%M:%S"));
 
         let mut next_page_id = None;
-        for _ in 0..8 {
+        for _ in 0..2 {
             let url = match &next_page_id {
                 None => format!("https://news.ycombinator.com/threads?id={}", username),
                 Some(id) => format!("https://news.ycombinator.com/threads?id={}&next={}", username, id),
             };
 			loop {
-
 				match get_page(&url, &username, &conn, &stream_handle).await {
 					Ok(id) => next_page_id = id,
-					Err(e) => match e.status() {
-						Some(StatusCode::NOT_FOUND) => {
-							eprintln!("Error: Resource not found (404)");
-							break;
-						},
-						Some(StatusCode::TOO_MANY_REQUESTS) => {
-							eprintln!("Error: Rate limited, retrying after a second");
-							sleep(Duration::from_secs(3)).await;
-						},
+					Err(e) => match e.downcast_ref::<reqwest::Error>() {
+						Some(http_err) => match http_err.status() {
+							Some(status) => match status {
+								StatusCode::OK=> {
+									eprintln!("ok");
+									break;
+								},
+								StatusCode::NOT_FOUND => {
+									eprintln!("Error: Resource not found (404)");
+									break;
+								},
+								StatusCode::TOO_MANY_REQUESTS=> {
+									eprintln!("Error: rate limit");
+									sleep(Duration::from_secs(3));
+								},
+								_ => std::process::abort(),
+							}
+							None => std::process::abort(),
+						}
 						None => {
 							eprintln!("Error processing page: {}", e);
 							break;
 						},
 					}
 				}
+				println!("Sleeping real quick to not hammer...");
 				sleep(Duration::from_secs(2));
+				break;
 			}
         }
-
+		println!("Sleeping for longer...");
         sleep(Duration::from_secs(60 * 15));
     }
 }
