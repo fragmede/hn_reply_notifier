@@ -22,10 +22,15 @@ async fn process_page(url: &str, username: &str, conn: &Connection, stream_handl
 
 	//for comment in fragment.select(&comment_selector) {
 	for comment in fragment.select(&comments_selector) {
-		let comment_text = comment.select(&commtext_sel) {
-			Some("") => {
-			}
-		}.text().collect::<String>();
+		let comment_text = comment.select(&commtext_sel)
+			.next()
+			.map(|e| e.text().collect::<String>())
+			.unwrap_or_else(|| "".to_string());
+    
+		//let comment_text = comment.select(&commtext_sel) {
+		//	Some("") => {
+		//	}
+		//}.text().collect::<String>();
 
 		//println!("comment {:?}", comment);
 		//Html::parse_comment.text().
