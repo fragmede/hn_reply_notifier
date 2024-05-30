@@ -163,7 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Checking for new comments at {}", now.format("%Y-%m-%d %H:%M:%S"));
 
         let mut next_page_id = None;
-        for _ in 0..2 {
+        for _ in 0..8 {
             let url = match &next_page_id {
                 None => format!("https://news.ycombinator.com/threads?id={}", username),
                 Some(id) => format!("https://news.ycombinator.com/threads?id={}&next={}", username, id),
