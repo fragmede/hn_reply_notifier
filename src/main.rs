@@ -13,30 +13,76 @@ async fn process_page(url: &str, username: &str, conn: &Connection, stream_handl
     let resp = reqwest::get(url).await?;
     let body = resp.text().await?;
     let fragment = Html::parse_document(&body);
-    let comment_selector = Selector::parse(".commtext").unwrap();
+    //let comment_selector = Selector::parse(".commtext").unwrap();
     let more_selector = Selector::parse("a.morelink").unwrap();
 
-    for comment in fragment.select(&comment_selector) {
-        let comment_text = comment.text().collect::<String>();
-        let author = comment.ancestors().find_map(|ancestor| {
-            ancestor.children().find_map(|node| {
-                if let Some(element) = node.value().as_element() {
-                    if element.name.local.as_ref() == "a" && element.attr("class").unwrap_or("") == "hnuser" {
-                        node.children().filter_map(|n| {
-                            if let Some(text) = n.value().as_text() {
-                                Some(text.to_string())
-                            } else {
-                                None
-                            }
-                        }).next()
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            })
-        }).unwrap_or_else(|| String::from("Unknown"));
+    let comments_selector = Selector::parse(".athing").unwrap();
+
+    let commtext_sel = Selector::parse(".commtext").unwrap();
+
+    let commhead_sel = Selector::parse(".comhead").unwrap();
+
+	//for comment in fragment.select(&comment_selector) {
+	for comment in fragment.select(&comments_selector) {
+		let comment_text = comment.select(&commtext_sel).next().unwrap().text().collect::<String>();
+		let comment_head = comment.select(&commhead_sel).next().unwrap().text().collect::<String>();
+		let username = comment.select(&Selector::parse(".hnuser").unwrap()).next().unwrap().text().collect::<String>();
+		//println!("comment {:?}", comment);
+		//Html::parse_comment.text().
+		//let comment_text = comment.text().collect::<String>();
+		println!("\n\n\n\nComment Text: {}", comment_text);
+		println!("\n\n\n\nComment head: {}", comment_head);
+		println!("\n\n\nuser: {}", username);
+
+//		let author = comment.ancestors().find_map(|ancestor| {
+//		//let author = comment.ancestors().find_map(|parent| {
+//		//	println!("parent");
+//			//parent.ancestors().find_map(|ancestor| {
+//			//println!("ancestor {:?}", ancestor.value());
+//			ancestor.children().find_map(|node| {
+//				println!("node {:?}", node.value());
+//				//if node.as_element().name.local.as_ref() == "span" {
+//				//	match node.attr("class") {
+//				//		Some("comhead") => {
+//				//			println!("here");
+//				//		}
+//				//	}
+//				//}
+//
+//				if let Some(element) = node.value().as_element() {
+//					//println!("elem: {:?}", node.value());
+//					//println!("elem: {} - {}", element.name.local.as_ref(), element.attr("class").as_ref());
+//
+//					//if element.name.local.as_ref() == "
+//					//if element.name.local.as_ref() == "tr" {
+//					//	println!("ele: {:?}", element);
+//					//	match element.attr("class") {
+//					//		Some("comtr"
+//					if element.name.local.as_ref() == "tr" {
+//						println!("ele: {:?}", element);
+//						match element.attr("class") {
+//							Some("hnuser") => {
+//								node.children().filter_map(|n| {
+//									if let Some(text) = n.value().as_text() {
+//										Some(text.to_string())
+//									} else {
+//										None
+//									}
+//								}).next()
+//							},
+//							_ => None,
+//						}
+//					} else {
+//						None
+//					}
+//				} else {
+//					None
+//				}
+//			})
+////})
+//		}).unwrap_or_else(|| String::from("Unknown"));
+
+		println!("Author: {}", author); // author remains a String
 
         if author == username {
             continue;
@@ -49,7 +95,7 @@ async fn process_page(url: &str, username: &str, conn: &Connection, stream_handl
             conn.execute(
                 "INSERT INTO comments (text) VALUES (?1)",
                 params![comment_text],
-            )?;
+                )?;
             println!("New comment from {}: {}", author, comment_text);
 
             let first_10_words: String = comment_text.split_whitespace().take(10).collect::<Vec<&str>>().join(" ");
@@ -124,11 +170,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut next_page_id = None;
         for _ in 0..4 {
-            let url = format!(
-                "https://news.ycombinator.com/threads?id={}&next={}",
-                username,
-                next_page_id.unwrap_or_default()
-            );
+			let url = format!("https://news.ycombinator.com/threads?id={}&next={}", username,
+				next_page_id.clone().unwrap_or_default());
             match process_page(&url, &username, &conn, &stream_handle).await {
                 Ok(id) => next_page_id = id,
                 Err(e) => eprintln!("Error processing page: {}", e),
