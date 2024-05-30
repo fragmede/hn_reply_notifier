@@ -1,33 +1,69 @@
 use chrono::Local;
-use scraper::{Html, Selector};
-use rusqlite::{params, Connection, Result};
-use notify_rust::Notification;
-use std::io::BufReader;
-use std::fs::File;
-use rodio::{Decoder, OutputStream, source::Source};
 use clap::{Arg, App};
 use dirs;
+use notify_rust::Notification;
+use rodio::{Decoder, OutputStream, source::Source};
+use rusqlite::{params, Connection, Result};
+use scraper::{Html, Selector};
+use std::error::Error;
+use std::fs::File;
 use std::fs;
+use std::io::BufReader;
+use std::thread::sleep;
+use std::time::Duration;
+use reqwest::StatusCode;
 
-async fn process_page(url: &str, username: &str, conn: &Connection, stream_handle: &rodio::OutputStreamHandle) -> Result<Option<String>, Box<dyn std::error::Error>> {
+
+async fn get_page(url: &str, username: &str, conn: &Connection, stream_handle: &rodio::OutputStreamHandle) -> Result<String, Box<dyn Error>> {
+
     println!("Checking for new comments on {}", url);
     let resp = reqwest::get(url).await?;
-    let body = resp.text().await?;
+    let status = resp.status();
+
+    match status {
+        StatusCode::OK => {
+            // Fetch the response body
+            let body = resp.text().await?;
+			match process_page(&body, username, conn, stream_handle).await {
+				Ok(processed_body) => Ok(processed_body),
+				Err(e) => {
+					eprintln!("Error processing page: {}", e);
+					Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "error parsing")))
+				}
+			}
+        },
+        StatusCode::NOT_FOUND => {
+            eprintln!("Error: Resource not found (404)");
+            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Resource not found")))
+        },
+        StatusCode::TOO_MANY_REQUESTS => {
+            eprintln!("Error: Rate limited (429)");
+            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "429 rate limited")))
+        },
+        _ => {
+            eprintln!("Error: Received unexpected status code {}", status);
+            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, status.as_str())))
+        },
+    };
+}
+
+
+async fn process_page(body: &str, username: &str, conn: &Connection, stream_handle: &rodio::OutputStreamHandle) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    //let body = resp.text().await?;
     let fragment = Html::parse_document(&body);
-    let more_selector = Selector::parse("a.morelink").unwrap();
     let comments_selector = Selector::parse(".athing").unwrap();
     let commtext_sel = Selector::parse(".commtext").unwrap();
-    let commhead_sel = Selector::parse(".comhead").unwrap();
+    //let commhead_sel = Selector::parse(".comhead").unwrap();
 
 	//for comment in fragment.select(&comment_selector) {
 	for comment in fragment.select(&comments_selector) {
 		let comment_text = comment.select(&commtext_sel).next().unwrap().text().collect::<String>();
-		let comment_head = comment.select(&commhead_sel).next().unwrap().text().collect::<String>();
 		let author = comment.select(&Selector::parse(".hnuser").unwrap()).next().unwrap().text().collect::<String>();
 		//println!("\n\n\n\nComment Text: {}", comment_text);
 		//println!("\n\n\n\nComment head: {}", comment_head);
 		//println!("Author: {}", author); // author remains a String
         if author == username {
+            //println!("Ignoring the reply you wrote.");
             continue;
         }
 
@@ -54,16 +90,38 @@ async fn process_page(url: &str, username: &str, conn: &Connection, stream_handl
             }
         }
     }
+    let more_selector = Selector::parse("a.morelink").unwrap();
+	println!("more sel {:#?}", more_selector);
 
-    let next_page_id = fragment.select(&more_selector)
-        .filter_map(|node| node.value().attr("href"))
-        .next()
-        .and_then(|href| {
-            let parts: Vec<&str> = href.split('=').collect();
-            parts.get(2).map(|&s| s.to_string())
-        });
+	let foo = fragment.select(&more_selector);
+	println!("more sel {:#?}", foo);
+	let next_page_id = fragment.select(&more_selector)
+		.filter_map(|node| {
+			let href = node.value().attr("href");
+			if href.is_none() {
+				eprintln!("Node does not have href attribute");
+			} else {
+				eprintln!("Node href attribute: {}", href.unwrap());
+			}
+			href
+		})
+	.next()
+		.and_then(|href| {
+			eprintln!("Processing href: {}", href);
+			let parts: Vec<&str> = href.split('=').collect();
+			if parts.len() > 2 {
+				Some(parts[2].to_string())
+			} else {
+				eprintln!("Unexpected href format: {}", href);
+				None
+			}
+		});
 
-    Ok(next_page_id)
+	if next_page_id.is_none() {
+		eprintln!("next_page_id could not be determined");
+		return Err(Box::<dyn Error>::from("next_page_id could not be determined"));
+	}
+	Ok(next_page_id)
 }
 
 #[tokio::main]
@@ -112,21 +170,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Checking for new comments at {}", now.format("%Y-%m-%d %H:%M:%S"));
 
         let mut next_page_id = None;
-        for _ in 0..4 {
-            let url = if next_page_id.as_deref() == None {
-                format!("https://news.ycombinator.com/threads?id={}", username)
-            } else {
-                format!("https://news.ycombinator.com/threads?id={}&next={}", username, next_page_id.clone().unwrap_or_default())
+        for _ in 0..8 {
+            let url = match &next_page_id {
+                None => format!("https://news.ycombinator.com/threads?id={}", username),
+                Some(id) => format!("https://news.ycombinator.com/threads?id={}&next={}", username, id),
             };
-            match process_page(&url, &username, &conn, &stream_handle).await {
-                Ok(id) => next_page_id = id,
-                Err(e) => eprintln!("Error processing page: {}", e),
-            }
-            if next_page_id.is_none() {
-                break;
-            }
+			loop {
+
+				match get_page(&url, &username, &conn, &stream_handle).await {
+					Ok(id) => next_page_id = id,
+					Err(e) => match e.status() {
+						Some(StatusCode::NOT_FOUND) => {
+							eprintln!("Error: Resource not found (404)");
+							break;
+						},
+						Some(StatusCode::TOO_MANY_REQUESTS) => {
+							eprintln!("Error: Rate limited, retrying after a second");
+							sleep(Duration::from_secs(3)).await;
+						},
+						None => {
+							eprintln!("Error processing page: {}", e);
+							break;
+						},
+					}
+				}
+				sleep(Duration::from_secs(2));
+			}
         }
 
-        std::thread::sleep(std::time::Duration::from_secs(60 * 5));
+        sleep(Duration::from_secs(60 * 15));
     }
 }
