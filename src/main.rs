@@ -10,6 +10,7 @@ use dirs;
 use std::fs;
 
 async fn process_page(url: &str, username: &str, conn: &Connection, stream_handle: &rodio::OutputStreamHandle) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    println!("Checking for new comments on {}", url);
     let resp = reqwest::get(url).await?;
     let body = resp.text().await?;
     let fragment = Html::parse_document(&body);
@@ -112,8 +113,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut next_page_id = None;
         for _ in 0..4 {
-			let url = format!("https://news.ycombinator.com/threads?id={}&next={}", username,
-				next_page_id.clone().unwrap_or_default());
+            let url = if next_page_id.as_deref() == None {
+                format!("https://news.ycombinator.com/threads?id={}", username)
+            } else {
+                format!("https://news.ycombinator.com/threads?id={}&next={}", username, next_page_id.clone().unwrap_or_default())
+            };
             match process_page(&url, &username, &conn, &stream_handle).await {
                 Ok(id) => next_page_id = id,
                 Err(e) => eprintln!("Error processing page: {}", e),
