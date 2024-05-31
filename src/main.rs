@@ -188,9 +188,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 									eprintln!("Error: rate limit");
 									sleep(Duration::from_secs(3));
 								},
-								_ => std::process::abort(),
+								err => {
+									eprintln!("http error: {}", err);
+									std::process::abort(),
 							}
-							None => std::process::abort(),
+							None => {
+								eprintln!("other error");
+								std::process::abort(),
+							}
 						}
 						None => {
 							eprintln!("Error processing page: {}", e);
