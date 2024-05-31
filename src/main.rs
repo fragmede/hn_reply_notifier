@@ -96,13 +96,13 @@ async fn process_page(body: &str, username: &str, conn: &Connection, stream_hand
 			if href.is_none() {
 				eprintln!("Node does not have href attribute");
 			} else {
-				eprintln!("Node href attribute: {}", href.unwrap());
+				//eprintln!("Node href attribute: {}", href.unwrap());
 			}
 			href
 		})
 	.next()
 		.and_then(|href| {
-			eprintln!("Processing href: {}", href);
+			//eprintln!("Processing href: {}", href);
 			let parts: Vec<&str> = href.split('=').collect();
 			if parts.len() > 2 {
 				Some(parts[2].to_string())
