@@ -57,6 +57,8 @@ async fn process_page(body: &str, username: &str, conn: &Connection, stream_hand
 	for comment in fragment.select(&comments_selector) {
 		let comment_text = comment.select(&commtext_sel).next().unwrap().text().collect::<String>();
 		let author = comment.select(&Selector::parse(".hnuser").unwrap()).next().unwrap().text().collect::<String>();
+		let comment_id = comment.value().attr("id").unwrap();
+
 		//println!("\n\n\n\nComment Text: {}", comment_text);
 		//println!("Author: {}", author); // author remains a String
         if author == username {
@@ -72,7 +74,7 @@ async fn process_page(body: &str, username: &str, conn: &Connection, stream_hand
                 "INSERT INTO comments (text) VALUES (?1)",
                 params![comment_text],
                 )?;
-            println!("New comment from {}: {}", author, comment_text);
+            println!("https://news.ycombinator.com/item?id={}\nNew comment from {}: {}", &comment_id, author, comment_text);
 
             let first_10_words: String = comment_text.split_whitespace().take(10).collect::<Vec<&str>>().join(" ");
             Notification::new()
