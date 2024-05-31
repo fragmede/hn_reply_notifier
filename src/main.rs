@@ -15,35 +15,39 @@ use reqwest::StatusCode;
 
 async fn get_page(url: &str, username: &str, conn: &Connection, stream_handle: &rodio::OutputStreamHandle) -> Result<Option<String>, Box<dyn Error>> {
     println!("Checking for new comments on {}", url);
-    let resp = reqwest::get(url).await?;
-    let status = resp.status();
+    let resp = reqwest::get(url).await;
 
-    match status {
-        StatusCode::OK => {
-            // Fetch the response body
-            let body = resp.text().await?;
-            match process_page(&body, username, conn, stream_handle).await {
-				Ok(Some(processed_body)) => Ok(Some(processed_body)),
-                Ok(None) => Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "No content in processed page"))),
-                Err(e) => {
-                    eprintln!("Error processing page: {}", e);
-                    Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Error parsing: {}", e))))
-                }
-            }
-        },
-        StatusCode::NOT_FOUND => {
-            eprintln!("Error: Resource not found (404)");
-            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Resource not found")))
-        },
-        StatusCode::TOO_MANY_REQUESTS => {
-            eprintln!("Error: Rate limited (429)");
-            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "429 rate limited")))
-        },
-        _ => {
-            eprintln!("Error: Received unexpected status code {}", status);
-            Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Unexpected status code: {}", status))))
-        },
-    }
+	if let Err(e) = resp {
+		match e.status() {
+			Some(StatusCode::NOT_FOUND) => {
+				eprintln!("Error: Resource not found (404)");
+                return Err(Box::new(e));
+			},
+			Some(StatusCode::TOO_MANY_REQUESTS) => {
+				eprintln!("Error: Rate limited (429)");
+                return Err(Box::new(e));
+			},
+			Some(StatusCode::SERVICE_UNAVAILABLE) => {
+				eprintln!("Error: pseudo Rate limited (503)");
+				sleep(Duration::from_secs(3));
+                return Err(Box::new(e));
+			},
+			_ => {
+				eprintln!("Error: some other err {}", e);
+                return Err(Box::new(e));
+			}
+		}
+	}
+	let body = resp.unwrap().text().await?;
+	match process_page(&body, username, conn, stream_handle).await {
+		Ok(Some(processed_body)) => Ok(Some(processed_body)),
+		Ok(None) => Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "No content in processed page"))),
+		Err(e) => {
+			eprintln!("Error processing page: {}", e);
+			Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Error parsing: {}", e))))
+		}
+	}
+
 }
 
 async fn process_page(body: &str, username: &str, conn: &Connection, stream_handle: &rodio::OutputStreamHandle) -> Result<Option<String>, Box<dyn std::error::Error>> {
@@ -173,8 +177,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 			loop {
 				match get_page(&url, &username, &conn, &stream_handle).await {
 					Ok(id) => next_page_id = id,
-					Err(e) => match e.downcast_ref::<reqwest::Error>() {
-						Some(http_err) => match http_err.status() {
+					Err(e) => match e.downcast_ref::<reqwest::Error>() { // this doesn't actually work to get the StatusCode :(
+						Some(http_err) => match http_err.status() {      // because we give it an ErrorKind::Other
 							Some(status) => match status {
 								StatusCode::OK=> {
 									eprintln!("ok");
@@ -184,18 +188,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 									eprintln!("Error: Resource not found (404)");
 									break;
 								},
-								StatusCode::TOO_MANY_REQUESTS=> {
+								StatusCode::TOO_MANY_REQUESTS | StatusCode::SERVICE_UNAVAILABLE => {
 									eprintln!("Error: rate limit");
 									sleep(Duration::from_secs(3));
 								},
 								err => {
 									eprintln!("http error: {}", err);
-									std::process::abort(),
-							}
+									std::process::abort();
+								},
+							},
 							None => {
 								eprintln!("other error");
-								std::process::abort(),
-							}
+								std::process::abort();
+							},
 						}
 						None => {
 							eprintln!("Error processing page: {}", e);
@@ -203,8 +208,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 						},
 					}
 				}
-				println!("Sleeping real quick to not hammer...");
-				sleep(Duration::from_secs(2));
+				//println!("Sleeping real quick to not hammer...");
+				//sleep(Duration::from_secs(2));
 				break;
 			}
         }
