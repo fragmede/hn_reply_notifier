@@ -209,8 +209,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 						},
 					}
 				}
-				println!("Sleeping real quick to not hammer...");
-				sleep(Duration::from_millis(200));
+				//println!("Sleeping real quick to not hammer...");
+				sleep(Duration::from_millis(600));
 				break;
 			}
         }
