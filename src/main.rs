@@ -69,13 +69,13 @@ async fn process_page(body: &str, username: &str, conn: &Connection, stream_hand
             continue;
         }
 
-        let mut stmt = conn.prepare("SELECT id FROM comments WHERE text = ?1")?;
-        let comment_exists: Result<i32> = stmt.query_row(params![comment_text], |row| row.get(0));
+        let mut stmt = conn.prepare("SELECT id FROM comments WHERE comment_id = ?1")?;
+        let comment_exists: Result<i32> = stmt.query_row(params![comment_id], |row| row.get(0));
 
         if comment_exists.is_err() {
             conn.execute(
-                "INSERT INTO comments (text) VALUES (?1)",
-                params![comment_text],
+                "INSERT INTO comments (comment_id, text) VALUES (?1, ?2)",
+                params![comment_id, comment_text],
                 )?;
             println!("https://news.ycombinator.com/item?id={}\nNew comment from {}: {}", &comment_id, author, comment_text);
 
@@ -152,12 +152,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	println!("Username checking for is {}", username);
 
-    let conn = Connection::open("comments.db")?;
+    let conn = Connection::open("comments-by-id.db")?;
     conn.execute(
         "CREATE TABLE IF NOT EXISTS comments (
-              id INTEGER PRIMARY KEY,
-              text TEXT NOT NULL
-              )",
+            id INTEGER PRIMARY KEY,
+            comment_id INTEGER NOT NULL,
+            text TEXT NOT NULL
+        )",
         params![],
     )?;
 
