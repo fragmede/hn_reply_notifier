@@ -15,9 +15,9 @@ use reqwest::StatusCode;
 
 async fn get_page(url: &str, username: &str, conn: &Connection, stream_handle: &rodio::OutputStreamHandle) -> Result<Option<String>, Box<dyn Error>> {
     println!("Checking for new comments on {}", url);
-    let resp = reqwest::get(url).await;
+    let resp = reqwest::get(url).await?;
 
-	if let Err(e) = resp {
+	if let Err(e) = resp.error_for_status_ref() {
 		match e.status() {
 			Some(StatusCode::NOT_FOUND) => {
 				eprintln!("Error: Resource not found (404)");
@@ -29,7 +29,6 @@ async fn get_page(url: &str, username: &str, conn: &Connection, stream_handle: &
 			},
 			Some(StatusCode::SERVICE_UNAVAILABLE) => {
 				eprintln!("Error: pseudo Rate limited (503)");
-				sleep(Duration::from_secs(3));
                 return Err(Box::new(e));
 			},
 			_ => {
@@ -38,7 +37,7 @@ async fn get_page(url: &str, username: &str, conn: &Connection, stream_handle: &
 			}
 		}
 	}
-	let body = resp.unwrap().text().await?;
+	let body = resp.text().await?;
 	match process_page(&body, username, conn, stream_handle).await {
 		Ok(Some(processed_body)) => Ok(Some(processed_body)),
 		Ok(None) => Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "No content in processed page"))),
