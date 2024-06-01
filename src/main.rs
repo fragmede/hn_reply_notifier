@@ -188,6 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 									break;
 								},
 								StatusCode::TOO_MANY_REQUESTS | StatusCode::SERVICE_UNAVAILABLE => {
+									// HN throws a 503 instead of a 429
 									eprintln!("Error: rate limit");
 									sleep(Duration::from_secs(3));
 								},
