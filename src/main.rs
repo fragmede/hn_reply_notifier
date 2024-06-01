@@ -207,12 +207,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 						},
 					}
 				}
-				//println!("Sleeping real quick to not hammer...");
-				//sleep(Duration::from_secs(2));
+				println!("Sleeping real quick to not hammer...");
+				sleep(Duration::from_millis(200));
 				break;
 			}
         }
 		println!("Sleeping for longer...");
-        sleep(Duration::from_secs(60 * 15));
+        //sleep(Duration::from_mins(15));
+        // from_mins not currently available: https://github.com/rust-lang/rust/issues/120301
+        sleep(Duration::from_secs(60*15));
     }
 }
