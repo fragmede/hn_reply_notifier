@@ -8,13 +8,14 @@ use scraper::{Html, Selector};
 use std::error::Error;
 use std::fs::File;
 use std::fs;
-use std::io::BufReader;
+use std::io::{self, BufReader, Write};
 use std::thread::sleep;
 use std::time::Duration;
 use reqwest::StatusCode;
 
 async fn get_page(url: &str, username: &str, conn: &Connection, stream_handle: &rodio::OutputStreamHandle) -> Result<Option<String>, Box<dyn Error>> {
-    println!("Checking for new comments on {}", url);
+    //print!("{}, ", url);
+    //io::stdout().flush()?;  // Manually flush the standard output
     let resp = reqwest::get(url).await?;
 
 	if let Err(e) = resp.error_for_status_ref() {
@@ -77,7 +78,7 @@ async fn process_page(body: &str, username: &str, conn: &Connection, stream_hand
                 "INSERT INTO comments (comment_id, text) VALUES (?1, ?2)",
                 params![comment_id, comment_text],
                 )?;
-            println!("https://news.ycombinator.com/item?id={}\nNew comment from {}: {}", &comment_id, author, comment_text);
+            println!("\nhttps://news.ycombinator.com/context?id={}\nNew comment from {}: {}", &comment_id, author, comment_text);
 
             let first_10_words: String = comment_text.split_whitespace().take(10).collect::<Vec<&str>>().join(" ");
             Notification::new()
@@ -166,7 +167,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         let now = Local::now();
-        println!("Checking for new comments at {}", now.format("%Y-%m-%d %H:%M:%S"));
+        print!("Checking for new comments at {}", now.format("%Y-%m-%d %H:%M:%S"));
 
         let mut next_page_id = None;
         for _ in 0..12 {
@@ -175,6 +176,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Some(id) => format!("https://news.ycombinator.com/threads?id={}&next={}", username, id),
             };
 			loop {
+                if let Some(next_page) = next_page_id.clone() {
+                    print!(", {}", next_page);
+                    io::stdout().flush()?;  // Manually flush stdout
+                }
+
 				match get_page(&url, &username, &conn, &stream_handle).await {
 					Ok(id) => next_page_id = id,
 					Err(e) => match e.downcast_ref::<reqwest::Error>() { // this doesn't actually work to get the StatusCode :(
@@ -214,7 +220,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 				break;
 			}
         }
-		println!("Sleeping for longer...");
+		println!(" Sleeping for longer...");
         //sleep(Duration::from_mins(15));
         // from_mins not currently available: https://github.com/rust-lang/rust/issues/120301
         sleep(Duration::from_secs(60*15));
